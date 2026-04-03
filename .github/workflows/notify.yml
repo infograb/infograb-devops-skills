@@ -1,0 +1,79 @@
+name: Slack Notify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed skills
+        id: skills
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | grep '/SKILL.md$' | sed 's|/SKILL.md||' | paste -sd ',' -)
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '/SKILL.md$' | sed 's|/SKILL.md||' | paste -sd ',' -)
+          fi
+          echo "changed=${CHANGED:-none}" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send Slack notification
+        if: steps.skills.outputs.changed != 'none'
+        env:
+          WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          EVENT: ${{ github.event_name }}
+          SKILLS: ${{ steps.skills.outputs.changed }}
+          ACTOR: ${{ github.actor }}
+          REF: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          PR_URL: ${{ github.event.pull_request.html_url || '' }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            TITLE="PR: ${PR_TITLE}"
+            URL="${PR_URL}"
+          else
+            TITLE=$(echo "$COMMIT_MSG" | head -1)
+            URL="https://github.com/${REPO}/commit/${SHA}"
+          fi
+
+          jq -n \
+            --arg header ":package: infograb-devops-skills" \
+            --arg title "$TITLE" \
+            --arg url "$URL" \
+            --arg skills "$SKILLS" \
+            --arg meta "\`${REF}\` · ${ACTOR}" \
+            '{
+              text: ("["+ $skills + "] " + $title),
+              blocks: [
+                {
+                  type: "header",
+                  text: { type: "plain_text", text: $header, emoji: true }
+                },
+                {
+                  type: "section",
+                  text: { type: "mrkdwn", text: ("*<" + $url + "|" + $title + ">*\nSkills: `" + $skills + "`") }
+                },
+                {
+                  type: "context",
+                  elements: [
+                    { type: "mrkdwn", text: $meta }
+                  ]
+                }
+              ]
+            }' > /tmp/payload.json
+
+          curl -sf -X POST "$WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/payload.json
