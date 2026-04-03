@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ERRORS=0
 CHECKED=0
 
-SKIP_DIRS=".git|.github|docs|packages|scripts|node_modules"
+SKIP_DIRS=".git|.github|.claude-plugin|docs|packages|scripts|node_modules"
 
 for dir in "$REPO_ROOT"/*/; do
   dirname="$(basename "$dir")"
@@ -28,7 +28,8 @@ for dir in "$REPO_ROOT"/*/; do
     continue
   fi
 
-  frontmatter="$(sed -n '2,/^---$/p' "$skill_file" | head -n -1)"
+  # macOS 호환: head -n -1 대신 sed로 마지막 줄(---) 제거
+  frontmatter="$(sed -n '2,/^---$/p' "$skill_file" | sed '$d')"
 
   name_value="$(echo "$frontmatter" | grep -E "^name:" | sed 's/^name:[[:space:]]*//')"
   if [ -z "$name_value" ]; then
