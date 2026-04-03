@@ -37,19 +37,22 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
           PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           PR_URL: ${{ github.event.pull_request.html_url || '' }}
-          PR_BODY: ${{ github.event.pull_request.body || '' }}
           COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
         run: |
+          # 제목과 URL 결정
           if [ "$EVENT" = "pull_request" ]; then
-            TITLE="PR #${{ github.event.pull_request.number }}: ${PR_TITLE}"
+            TITLE="PR #${PR_NUMBER}: ${PR_TITLE}"
             URL="${PR_URL}"
-            DESC=$(echo "$PR_BODY" | grep -v "^Co-Authored-By:" | sed '/^$/d' | head -20)
           else
             TITLE=$(echo "$COMMIT_MSG" | head -1)
             URL="https://github.com/${REPO}/commit/${SHA}"
-            DESC=$(echo "$COMMIT_MSG" | tail -n +3 | grep -v "^Co-Authored-By:" | sed '/^$/d')
           fi
+
+          # 본문: 커밋 메시지 본문 사용 (PR body가 아닌 커밋 메시지)
+          # Co-Authored-By 제거, 빈 줄 정리
+          DESC=$(git log -1 --pretty=%b | grep -v "^Co-Authored-By:" | sed '/^$/d' | head -10)
 
           if [ -n "$DESC" ]; then
             BODY=$(printf "*<%s|%s>*\n\`\`\`\n%s\n\`\`\`" "$URL" "$TITLE" "$DESC")
@@ -64,6 +67,8 @@ jobs:
             --arg fallback "[${SKILLS}] ${TITLE}" \
             '{
               text: $fallback,
+              unfurl_links: false,
+              unfurl_media: false,
               blocks: [
                 {
                   type: "header",
