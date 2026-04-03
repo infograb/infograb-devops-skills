@@ -1,0 +1,9 @@
+{
+  "name": "infograb-devops-skills",
+  "version": "0.1.0",
+  "description": "DevOps 전문 에이전트 스킬 컬렉션 — CI/CD 분석, 컨테이너 최적화, 보안 점검. InfoGrab 제공.",
+  "author": {
+    "name": "InfoGrab",
+    "email": "support@infograb.net"
+  }
+}
