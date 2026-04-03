@@ -38,24 +38,32 @@ jobs:
           SHA: ${{ github.sha }}
           PR_TITLE: ${{ github.event.pull_request.title || '' }}
           PR_URL: ${{ github.event.pull_request.html_url || '' }}
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
           COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
         run: |
           if [ "$EVENT" = "pull_request" ]; then
-            TITLE="PR: ${PR_TITLE}"
+            TITLE="PR #${{ github.event.pull_request.number }}: ${PR_TITLE}"
             URL="${PR_URL}"
+            DESC=$(echo "$PR_BODY" | grep -v "^Co-Authored-By:" | sed '/^$/d' | head -20)
           else
             TITLE=$(echo "$COMMIT_MSG" | head -1)
             URL="https://github.com/${REPO}/commit/${SHA}"
+            DESC=$(echo "$COMMIT_MSG" | tail -n +3 | grep -v "^Co-Authored-By:" | sed '/^$/d')
+          fi
+
+          if [ -n "$DESC" ]; then
+            BODY=$(printf "*<%s|%s>*\n\`\`\`\n%s\n\`\`\`" "$URL" "$TITLE" "$DESC")
+          else
+            BODY=$(printf "*<%s|%s>*\n\`\`\`\nSkills: %s\n\`\`\`" "$URL" "$TITLE" "$SKILLS")
           fi
 
           jq -n \
             --arg header ":package: infograb-devops-skills" \
-            --arg title "$TITLE" \
-            --arg url "$URL" \
-            --arg skills "$SKILLS" \
+            --arg body "$BODY" \
             --arg meta "\`${REF}\` · ${ACTOR}" \
+            --arg fallback "[${SKILLS}] ${TITLE}" \
             '{
-              text: ("["+ $skills + "] " + $title),
+              text: $fallback,
               blocks: [
                 {
                   type: "header",
@@ -63,7 +71,7 @@ jobs:
                 },
                 {
                   type: "section",
-                  text: { type: "mrkdwn", text: ("*<" + $url + "|" + $title + ">*\nSkills: `" + $skills + "`") }
+                  text: { type: "mrkdwn", text: $body }
                 },
                 {
                   type: "context",
